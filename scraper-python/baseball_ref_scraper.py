@@ -14,41 +14,31 @@ import numpy as np
 import psycopg2
 import subprocess
 
-USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.119 Safari/537.36'
-EXTENSION_DIR = r'C:\Users\Daniel\01.devel\chrome_anti_detection_extension'
-DRIVER_OPTS = [f'user-agent={USER_AGENT}', 'log-level=3', f'load-extension={EXTENSION_DIR}']
-SOURCE_ID = 'baseballref'
 logger = logging.getLogger(__name__)
 
 class SeleniumCrawler:
 
     def __init__(self, driver_opts: list = None, num_threads: int = 1, selenium_data: list = []):
-        self.driver_opts = driver_opts
+        self._driver_opts = driver_opts
         self.num_threads = num_threads
         self.selenium_data = selenium_data
         self.selenium_data_queue = Queue()
         self.worker_queue = Queue()
 
     def init_selenium_workers(self):
-        self.selenium_workers = {}
-        if self.driver_opts is not None:
+        self._selenium_workers = {}
+        if self._driver_opts is not None:
             options = webdriver.ChromeOptions()
-            for opt in self.driver_opts:
+            for opt in self._driver_opts:
                 options.add_argument(opt)
         for worker_id in range(self.num_threads):
-            if self.driver_opts is not None:
-                self.selenium_workers[worker_id] = webdriver.Chrome(options=options)
+            if self._driver_opts is not None:
+                self._selenium_workers[worker_id] = webdriver.Chrome(options=options)
             else:    
-                self.selenium_workers[worker_id] = webdriver.Chrome()
+                self._selenium_workers[worker_id] = webdriver.Chrome()
             self.worker_queue.put(worker_id)
     
     def selenium_task(self, worker: webdriver, data):
-        """
-        TODO: Use the below code to perform a task with a selenium worker.
-        :param worker: A selenium web worker NOT a worker ID; type: webdriver
-        :param data: Any data for your selenium function (must be pickleable)
-        :return type: None
-        """
         teamname = data[0]
         data_dict = data[1]
         for _, value in data_dict.items(): # loop over all URL sets in dictionary
@@ -67,50 +57,47 @@ class SeleniumCrawler:
                         ec.presence_of_element_located(
                             (By.XPATH, tag)))
                 except TimeoutException:
-                    insert_audit(teamname, 3, error=f'Timed out looking for html table - {tag}.')
+                    insert_audit(teamname, 3, error=f'html table - {tag}')
                     continue
-                df = html_to_dataframe(webelem, teamname)
+                try:
+                    df = html_to_dataframe(webelem, teamname)
+                except ValueError:
+                    insert_audit(teamname, 4, error=f'html table - {tag}')
                 insert_data(df, index, teamname)
             time.sleep(2 ** np.random.randint(3, 5))
 
     def selenium_queue_listener(self, data_queue: Queue, worker_queue: Queue):
-        """
-        Monitor a data queue and assign new pieces of data to any available web workers to action
-        :param data_queue: The python FIFO queue containing the data to run on the web worker; type: Queue
-        :param worker_queue: The queue that holds the IDs of any idle workers; type: Queue
-        :return type: None
-        """
-        logger.info('Selenium func worker started.')
+        logger.info('selenium listener started')
         while True:
             current_data = data_queue.get()
-            if current_data == '_STOP_':
-                logger.warning('_STOP_ encountered, killing worker thread.') # If a stop is encountered then kill the current worker
+            if current_data == '_stop_':
+                logger.warning('_stop_ encountered, killing worker thread') # If a stop is encountered then kill the current worker
                 data_queue.put(current_data) # Put stop back onto the queue to poison other workers listening
                 break
-            logger.info(f'Pulled item {current_data[0]} from the data queue.')
+            logger.info(f'Pulled item {current_data[0]} from the data queue')
             worker_id = worker_queue.get() # Get the ID of any currently free workers from the worker queue
-            worker = self.selenium_workers[worker_id] 
+            worker = self._selenium_workers[worker_id] 
             self.selenium_task(worker, current_data) # Assign current worker and current data to your selenium function
             worker_queue.put(worker_id) # Put the worker back into the worker queue
 
     def run(self):
         self.init_selenium_workers()
         # Create one queue listener thread per selenium worker
-        logger.info('Starting selenium background processes.')
-        selenium_processes = [Thread(target=self.selenium_queue_listener, args=(self.selenium_data_queue, self.worker_queue)) for _ in self.selenium_workers.keys()]
+        logger.info('starting selenium background processes')
+        selenium_processes = [Thread(target=self.selenium_queue_listener, args=(self.selenium_data_queue, self.worker_queue)) for _ in self._selenium_workers.keys()]
         for p in selenium_processes:
             p.daemon = True
             p.start()
-        logger.info('Adding data to data queue.')
+        logger.info('adding data to data queue')
         for d in self.selenium_data:
             self.selenium_data_queue.put(d)
-        self.selenium_data_queue.put('_STOP_')
-        logger.info('Waiting for listener threads to complete.')
+        self.selenium_data_queue.put('_stop_')
+        logger.info('waiting for listener threads to complete')
         for p in selenium_processes:
             p.join()
         # Quit all the web workers elegantly in the background
-        logger.info('Tearing down web workers. Sucessful web crawl!')
-        for worker in self.selenium_workers.values():
+        logger.info('tearing down web workers gracefully - sucessful web crawl')
+        for worker in self._selenium_workers.values():
             worker.quit()
 
 def config_logger():
@@ -130,8 +117,16 @@ def init_db_conn():
         raise ValueError(f'Connection to database failed! - {e.pgerror}.')
 
 def html_to_dataframe(webelem, teamname: str) -> pd.DataFrame:
-    html = webelem.get_attribute('outerHTML')
-    df = pd.read_html(html)[0]
+    try:
+        html = webelem.get_attribute('outerHTML')
+        df = pd.read_html(html)[0]
+    except TimeoutError:
+        try:
+            html = webelem.get_attribute('outerHTML')
+            df = pd.read_html(html)[0]
+        except:
+            raise ValueError('Error getting outerHTML attribute')
+    
     if "Rk" in df.columns:
         df = df[df["Rk"] != "Rk"]
     if "Name" in df.columns:
@@ -152,7 +147,7 @@ def create_data_list() -> list:
         exit(1)
     data_list = []
     with conn.cursor() as cur:
-        cur.execute('SELECT teamabbrev FROM baseballreference.team ORDER BY id')
+        cur.execute('SELECT teamabbrev FROM baseballreference.team WHERE ORDER BY id')
         for row in cur:
             data_dict = {}
             data_dict["batting"] = {
@@ -231,7 +226,7 @@ def insert_data(df, index: int, teamname: str, conn=None):
             conn.close()
 
 def backup_database(zipfile=False):
-    backup_path = Path('C:\\Users\\Daniel\\01.devel\\python\\baseball-reference-project')
+    backup_path = Path(r'C:\Users\Daniel\01.devel\sportsbetting-data-api\db-backups')
     getdate = datetime.datetime.now().strftime('%Y-%m-%d_%H%M%S')
     if zipfile is False:
         backup_file = backup_path / f'baseball_ref_db_backup_{getdate}.sql'
@@ -240,11 +235,13 @@ def backup_database(zipfile=False):
         backup_file = backup_path / f'baseball_ref_db_backup_{getdate}.zip'
         subprocess.call(f'docker exec -t localpostgres0 pg_dumpall -c -U postgres | gzip > {backup_file}', shell=True)
         
-
 def main():
+    user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.119 Safari/537.36'
+    extension_dir = r'C:\Users\Daniel\01.devel\chrome_anti_detection_extension'
+    driver_opts = [f'user-agent={user_agent}', 'log-level=3', f'load-extension={extension_dir}']
     config_logger()
     bot = SeleniumCrawler(
-        driver_opts=DRIVER_OPTS, 
+        driver_opts=driver_opts, 
         num_threads=5,
         selenium_data=create_data_list())
     bot.run()
