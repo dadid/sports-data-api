@@ -16,6 +16,10 @@ const (
 	httpRequestIDHeader string = "X-Request-Id"
 )
 
+var (
+	authSema = make(chan struct{}, 10) // counting semaphore using a buffered channel
+)
+
 // CtxKey represents the key for a value stored in a context
 type CtxKey string
 
@@ -55,13 +59,11 @@ func (s *Server) addRequestID(next http.HandlerFunc) http.HandlerFunc {
 }
 
 // LimitNumClients is a middleware to ensure no more than maxClients requests are passed concurrently to the given handler f
-func (s *Server) limitNumClients(next http.HandlerFunc, maxClients int) http.HandlerFunc {
-
-	sema := make(chan struct{}, maxClients) // counting semaphore using a buffered channel
+func (s *Server) limitNumClients(next http.HandlerFunc) http.HandlerFunc {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sema <- struct{}{}
-		defer func() { <-sema }()
+		authSema <- struct{}{}
+		defer func() { <-authSema }()
 		next(w, r)
 	})
 }
@@ -106,10 +108,10 @@ func (s *Server) httpRouterHandleWrapper(next http.HandlerFunc) httprouter.Handl
 }
 
 // Middleware is a func type that receives and returns an http.HandlerFunc
-type Middleware func(http.HandlerFunc) http.HandlerFunc
+type middleware func(http.HandlerFunc) http.HandlerFunc
 
 // chainMiddleware allows you to chain multiple middlewares together for repeated usage
-func (s *Server) chainMiddleware(h http.HandlerFunc, m ...Middleware) http.HandlerFunc {
+func (s *Server) chainMiddleware(h http.HandlerFunc, m ...middleware) http.HandlerFunc {
 	if len(m) < 1 {
 		return h
 	}

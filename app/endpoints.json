@@ -1,0 +1,61 @@
+{
+    "endpoints": [
+        {
+            "name": "generateToken",
+            "method": "POST",
+            "path": [
+                "user",
+                "generateToken"
+            ],
+            "parameters": null,
+            "query": {
+                "*": [
+                    "SELECT basic_auth.user_role($1, $2)"
+                ]
+            }
+        },
+        {
+            "name": "getTeams",
+            "method": "GET",
+            "path": [
+                "api",
+                "v1",
+                "mlb",
+                "teams"
+            ],
+            "parameters": null,
+            "query": {
+                "*": [
+                    "SELECT id, teamname, teamabbrev FROM baseballreference.team"
+                ]
+            }
+        },
+        {
+            "name": "getPitching",
+            "method": "GET",
+            "path": [
+                "api",
+                "v1",
+                "mlb",
+                "teams"
+            ],
+            "parameters": "teamabbrev",
+            "query": {
+                "*": [
+                    "SELECT id, teamabbrev, rk, pos, name, age, w, l, wl, era, g, gs, gf, cg, sho, sv, ip, h, r",
+				    "er, hr, bb, ibb, so, hbp, bk, wp, bf, eraplus, fip, whip, h9, hr9, bb9, so9, sow, createddate",
+		            "FROM (SELECT p.*, t.teamabbrev, DENSE_RANK() OVER(PARTITION BY teamid ORDER BY createddate DESC) AS rnk",
+					"FROM baseballreference.pitching p INNER JOIN baseballreference.team t ON t.id = p.teamid",
+                    ") x WHERE rnk = 1"
+                ],
+                "limit": [
+                    "SELECT id, teamabbrev, rk, pos, name, age, w, l, wl, era, g, gs, gf, cg, sho, sv, ip, h, r",
+				    "er, hr, bb, ibb, so, hbp, bk, wp, bf, eraplus, fip, whip, h9, hr9, bb9, so9, sow, createddate",
+		            "FROM (SELECT p.*, t.teamabbrev, DENSE_RANK() OVER(PARTITION BY teamid ORDER BY createddate DESC) AS rnk",
+					"FROM baseballreference.pitching p INNER JOIN baseballreference.team t ON t.id = p.teamid",
+                    "WHERE t.teamabbrev = $1) x WHERE rnk = 1"
+                ]
+            }
+        }
+    ]
+}

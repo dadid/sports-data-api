@@ -184,7 +184,7 @@ type Baserunner struct {
 	Oob3        null.Int    `json:"oob3"`
 	Oobhm       null.Int    `json:"oobhm"`
 	Bt          null.Int    `json:"bt"`
-	Xctpct      null.String `json:"xbtpct"`
+	Xbtpct      null.String `json:"xbtpct"`
 	Firsts      null.Int    `json:"firsts"`
 	Firsts2     null.Int    `json:"firsts2"`
 	Firsts3     null.Int    `json:"firsts3"`

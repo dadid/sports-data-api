@@ -1,7 +1,6 @@
 package app
 
 import (
-	"database/sql"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -33,7 +32,7 @@ type Claims struct {
 }
 
 var (
-	secretKey = os.Getenv("BR_API_SECRET_KEY")
+	secretKey = os.Getenv("SBD_API_SECRET_KEY")
 )
 
 // GenerateToken validates API user creds and returns a JWT token string; endpoint - /api/v1/generateToken
@@ -48,7 +47,7 @@ func (s *Server) generateToken() http.HandlerFunc {
 			json.NewEncoder(w).Encode(Exception{Status: http.StatusInternalServerError, Message: err.Error()})
 			return
 		}
-		if validateCredentials(user, s.Dbc.Db) {
+		if s.validateCredentials(user) {
 			expirationTime := time.Now().Add(24 * time.Hour)
 			// Create the JWT claims, which includes the username, password and expiration time
 			claims := &Claims{
@@ -64,11 +63,11 @@ func (s *Server) generateToken() http.HandlerFunc {
 				json.NewEncoder(w).Encode(Exception{Status: http.StatusInternalServerError, Message: "error signing token string"})
 				return
 			}
-			http.SetCookie(w, &http.Cookie{
-				Name:    "token",
-				Value:   tokenString,
-				Expires: expirationTime,
-			})
+			// http.SetCookie(w, &http.Cookie{
+			// 	Name:    "token",
+			// 	Value:   tokenString,
+			// 	Expires: expirationTime,
+			// })
 			json.NewEncoder(w).Encode(JwtToken{Token: tokenString})
 			return
 		}
@@ -76,10 +75,10 @@ func (s *Server) generateToken() http.HandlerFunc {
 	})
 }
 
-func validateCredentials(user User, db *sql.DB) bool {
-	// Execute user_role(user, pass) func in database and scan result into null.String; null == ""
+func (s *Server) validateCredentials(user User) bool {
+	// execute user_role(user, pass) func in database and scan result into null.String; null == ""
 	var role null.String
-	err := db.QueryRow("SELECT basic_auth.user_role($1, $2)", user.Username, user.Password).Scan(&role)
+	err := s.Dbc.Db.Get(&role, "SELECT basic_auth.user_role($1, $2)", user.Username, user.Password)
 	if err != nil {
 		log.Println(errors.Wrap(err, "error querying users table"))
 		return false
