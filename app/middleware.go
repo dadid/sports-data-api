@@ -78,13 +78,13 @@ func (s *Server) authenticate(next http.HandlerFunc) http.HandlerFunc {
 		case nil: // if err is nil do nothing
 		case http.ErrNoCookie: // if no cookie is present check for the token header
 			bearerToken, err = checkBearerTokenHeader(r)
-			if err != nil {
-				json.NewEncoder(w).Encode(Exception{Status: http.StatusUnauthorized, Message: err.Error()})
+			if ok := checkWriteError(err, http.StatusUnauthorized, w); ok {
 				return
 			}
 		default:
-			json.NewEncoder(w).Encode(Exception{Status: http.StatusUnauthorized, Message: errors.Wrap(err, "no authorization token found").Error()})
-			return
+			if ok := checkWriteError(errors.Wrap(err, "no authorization token found"), http.StatusUnauthorized, w); ok {
+				return
+			}
 		}
 
 		ok := authenticateToken(bearerToken) // if token is found then attempt to authenticate

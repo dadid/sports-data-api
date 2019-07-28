@@ -225,7 +225,7 @@ def insert_data(df, index: int, teamname: str, conn=None):
         finally: 
             conn.close()
 
-def backup_database(zipfile=False):
+def docker_exec_database_backup(zipfile=False):
     backup_path = Path(r'C:\Users\Daniel\01.devel\sportsbetting-data-api\db-backups')
     getdate = datetime.datetime.now().strftime('%Y-%m-%d_%H%M%S')
     if zipfile is False:
@@ -234,7 +234,7 @@ def backup_database(zipfile=False):
     else:
         backup_file = backup_path / f'baseball_ref_db_backup_{getdate}.zip'
         subprocess.call(f'docker exec -t localpostgres0 pg_dumpall -c -U postgres | gzip > {backup_file}', shell=True)
-        
+
 def main():
     user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.119 Safari/537.36'
     extension_dir = r'C:\Users\Daniel\01.devel\chrome_anti_detection_extension'
@@ -245,7 +245,7 @@ def main():
         num_threads=5,
         selenium_data=create_data_list())
     bot.run()
-    backup_database(zipfile=True)
+    docker_exec_database_backup(zipfile=True)
 
 if __name__ == '__main__':
     main()
