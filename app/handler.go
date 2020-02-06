@@ -2,77 +2,13 @@ package app
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
-
-	"github.com/jmoiron/sqlx"
-	"github.com/pkg/errors"
 )
 
 // Exception represents an error
 type Exception struct {
 	Status  int    `json:"status"`
 	Message string `json:"message"`
-}
-
-func scanData(rows *sqlx.Rows, table string) (data []interface{}, err error) {
-	switch table {
-	case "pitching":
-		for rows.Next() {
-			pitcher := Pitcher{}
-			err = rows.StructScan(&pitcher)
-			if err != nil {
-				log.Println(errors.Wrap(err, "error scanning row").Error())
-				continue
-			}
-			data = append(data, pitcher)
-		}
-	case "batting":
-		for rows.Next() {
-			batter := Batter{}
-			err = rows.StructScan(&batter)
-			if err != nil {
-				log.Println(errors.Wrap(err, "error scanning row").Error())
-				continue
-			}
-			data = append(data, batter)
-		}
-	case "baserunning":
-		for rows.Next() {
-			baserunner := Baserunner{}
-			err = rows.StructScan(&baserunner)
-			if err != nil {
-				log.Println(errors.Wrap(err, "error scanning row").Error())
-				continue
-			}
-			data = append(data, baserunner)
-		}
-	case "battingsplits":
-		for rows.Next() {
-			battingSplit := BattingSplit{}
-			err = rows.StructScan(&battingSplit)
-			if err != nil {
-				log.Println(errors.Wrap(err, "error scanning row").Error())
-				continue
-			}
-			data = append(data, battingSplit)
-		}
-	case "pitchingsplits":
-		for rows.Next() {
-			pitchingSplit := PitchingSplit{}
-			err = rows.StructScan(&pitchingSplit)
-			if err != nil {
-				log.Println(errors.Wrap(err, "error scanning row").Error())
-				continue
-			}
-			data = append(data, pitchingSplit)
-		}
-	}
-	if err = rows.Err(); err != nil {
-		err = errors.Wrap(err, "Error completing query.")
-		return nil, err
-	}
-	return data, nil
 }
 
 func checkWriteError(err error, status int, w http.ResponseWriter) bool {
@@ -96,7 +32,8 @@ func (s *Server) GetAllTeams(w http.ResponseWriter, r *http.Request) {
 
 // GetAllPitching fetches most recent pitching data for all MLB teams; endpoint: /api/v1/mlb/pitching
 func (s *Server) GetAllPitching(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.Dbc.Db.Queryx(
+	pitchers := []Pitcher{}
+	err := s.Dbc.Db.Select(&pitchers,
 		`SELECT	id, teamabbrev, rk, pos, name, age, w, l, wl, era, g, gs, gf, cg, sho, sv, ip, h, r, 
 				er, hr, bb, ibb, so, hbp, bk, wp, bf, eraplus, fip, whip, h9, hr9, bb9, so9, sow, createddate
 		FROM 	(
@@ -105,10 +42,6 @@ func (s *Server) GetAllPitching(w http.ResponseWriter, r *http.Request) {
 							INNER JOIN baseballreference.team t ON t.id = p.teamid
 				) x
 		WHERE rnk = 1`)
-	if ok := checkWriteError(err, http.StatusInternalServerError, w); ok {
-		return
-	}
-	pitchers, err := scanData(rows, "pitching")
 	if ok := checkWriteError(err, http.StatusInternalServerError, w); ok {
 		return
 	}
@@ -119,7 +52,8 @@ func (s *Server) GetAllPitching(w http.ResponseWriter, r *http.Request) {
 // GetTeamPitching fetches most recent pitching data for specified MLB team; endpoint: /api/v1/mlb/pitching/:teamabbrev
 func (s *Server) GetTeamPitching(w http.ResponseWriter, r *http.Request) {
 	p := getParams(r.Context())
-	rows, err := s.Dbc.Db.Queryx(
+	pitchers := []Pitcher{}
+	err := s.Dbc.Db.Select(&pitchers,
 		`SELECT	id, teamabbrev, rk, pos, name, age, w, l, wl, era, g, gs, gf, cg, sho, sv, ip, h, r, 
 				er, hr, bb, ibb, so, hbp, bk, wp, bf, eraplus, fip, whip, h9, hr9, bb9, so9, sow, createddate
 		FROM 	(
@@ -132,17 +66,14 @@ func (s *Server) GetTeamPitching(w http.ResponseWriter, r *http.Request) {
 	if ok := checkWriteError(err, http.StatusInternalServerError, w); ok {
 		return
 	}
-	pitchers, err := scanData(rows, "pitching")
-	if ok := checkWriteError(err, http.StatusInternalServerError, w); ok {
-		return
-	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(pitchers)
 }
 
 // GetAllBatting fetches most recent batting data for all MLB teams; endpoint: /api/v1/mlb/batting
 func (s *Server) GetAllBatting(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.Dbc.Db.Queryx(
+	batters := []Batter{}
+	err := s.Dbc.Db.Select(&batters,
 		`SELECT	id, teamabbrev, rk, pos, name, age, g, pa, ab, r, h, twob, threeb, hr, rbi, 
 				sb, cs, bb, so, ba, obp, slg, ops, opsplus, tb, gdp, hbp, sh, sf, ibb, createddate
 		FROM 	(
@@ -151,10 +82,6 @@ func (s *Server) GetAllBatting(w http.ResponseWriter, r *http.Request) {
 							INNER JOIN baseballreference.team t ON t.id = p.teamid
 				) x
 		WHERE rnk = 1`)
-	if ok := checkWriteError(err, http.StatusInternalServerError, w); ok {
-		return
-	}
-	batters, err := scanData(rows, "batting")
 	if ok := checkWriteError(err, http.StatusInternalServerError, w); ok {
 		return
 	}
@@ -165,7 +92,8 @@ func (s *Server) GetAllBatting(w http.ResponseWriter, r *http.Request) {
 // GetTeamBatting fetches most recent batting data for specified MLB team; endpoint: /api/v1/mlb/batting/:teamabbrev
 func (s *Server) GetTeamBatting(w http.ResponseWriter, r *http.Request) {
 	p := getParams(r.Context())
-	rows, err := s.Dbc.Db.Queryx(
+	batters := []Batter{}
+	err := s.Dbc.Db.Select(&batters,
 		`SELECT	id, teamabbrev, rk, pos, name, age, g, pa, ab, r, h, twob, threeb, hr, rbi, 
 				sb, cs, bb, so, ba, obp, slg, ops, opsplus, tb, gdp, hbp, sh, sf, ibb, createddate
 		FROM 	(
@@ -178,17 +106,14 @@ func (s *Server) GetTeamBatting(w http.ResponseWriter, r *http.Request) {
 	if ok := checkWriteError(err, http.StatusInternalServerError, w); ok {
 		return
 	}
-	batters, err := scanData(rows, "batting")
-	if ok := checkWriteError(err, http.StatusInternalServerError, w); ok {
-		return
-	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(batters)
 }
 
 // GetAllBattingSplits fetches most recent batting_splits data for all MLB teams; endpoint: /api/v1/mlb/splits/batting
 func (s *Server) GetAllBattingSplits(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.Dbc.Db.Queryx(
+	battingSplits := []BattingSplit{}
+	err := s.Dbc.Db.Select(&battingSplits,
 		`SELECT	id, teamabbrev, split, g, gs, pa, ab, r, h, twob, threeb, hr, rbi, sb, cs, bb, so, ba, 
 				obp, slg, ops, tb, gdp, hbp, sh, sf, ibb, roe, babip, topsplus, sopsplus, createddate
 		FROM 	(
@@ -197,10 +122,6 @@ func (s *Server) GetAllBattingSplits(w http.ResponseWriter, r *http.Request) {
 							INNER JOIN baseballreference.team t ON t.id = p.teamid
 				) x
 		WHERE rnk = 1`)
-	if ok := checkWriteError(err, http.StatusInternalServerError, w); ok {
-		return
-	}
-	battingSplits, err := scanData(rows, "battingsplits")
 	if ok := checkWriteError(err, http.StatusInternalServerError, w); ok {
 		return
 	}
@@ -211,7 +132,8 @@ func (s *Server) GetAllBattingSplits(w http.ResponseWriter, r *http.Request) {
 // GetTeamBattingSplits fetches most recent batting_splits data for specified MLB team; endpoint: /api/v1/mlb/splits/batting/:teamabbrev
 func (s *Server) GetTeamBattingSplits(w http.ResponseWriter, r *http.Request) {
 	p := getParams(r.Context())
-	rows, err := s.Dbc.Db.Queryx(
+	battingSplits := []BattingSplit{}
+	err := s.Dbc.Db.Select(&battingSplits,
 		`SELECT	id, teamabbrev, split, g, gs, pa, ab, r, h, twob, threeb, hr, rbi, sb, cs, bb, so, ba, 
 				obp, slg, ops, tb, gdp, hbp, sh, sf, ibb, roe, babip, topsplus, sopsplus, createddate
 		FROM 	(
@@ -224,17 +146,14 @@ func (s *Server) GetTeamBattingSplits(w http.ResponseWriter, r *http.Request) {
 	if ok := checkWriteError(err, http.StatusInternalServerError, w); ok {
 		return
 	}
-	battingSplits, err := scanData(rows, "battingsplits")
-	if ok := checkWriteError(err, http.StatusInternalServerError, w); ok {
-		return
-	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(battingSplits)
 }
 
 // GetAllPitchingSplits fetches most recent pitching_splits data for all MLB teams; endpoint: /api/v1/mlb/splits/batting
 func (s *Server) GetAllPitchingSplits(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.Dbc.Db.Queryx(
+	pitchingSplits := []PitchingSplit{}
+	err := s.Dbc.Db.Select(&pitchingSplits,
 		`SELECT	id, teamabbrev, split, g, pa, ab, r, h, twob, threeb, hr, sb, cs, bb, so, sow, ba, obp, slg, 
 				ops, tb, gdp, hbp, sh, sf, ibb, roe, babip, topsplus, sopsplus, createddate
 		FROM 	(
@@ -243,10 +162,6 @@ func (s *Server) GetAllPitchingSplits(w http.ResponseWriter, r *http.Request) {
 							INNER JOIN baseballreference.team t ON t.id = p.teamid
 				) x
 		WHERE rnk = 1`)
-	if ok := checkWriteError(err, http.StatusInternalServerError, w); ok {
-		return
-	}
-	pitchingSplits, err := scanData(rows, "pitchingsplits")
 	if ok := checkWriteError(err, http.StatusInternalServerError, w); ok {
 		return
 	}
@@ -257,7 +172,8 @@ func (s *Server) GetAllPitchingSplits(w http.ResponseWriter, r *http.Request) {
 // GetTeamPitchingSplits fetches most recent pitching_splits data for specified MLB team; endpoint: /api/v1/mlb/splits/batting/:teamabbrev
 func (s *Server) GetTeamPitchingSplits(w http.ResponseWriter, r *http.Request) {
 	p := getParams(r.Context())
-	rows, err := s.Dbc.Db.Queryx(
+	pitchingSplits := []PitchingSplit{}
+	err := s.Dbc.Db.Select(&pitchingSplits,
 		`SELECT	id, teamabbrev, split, g, pa, ab, r, h, twob, threeb, hr, sb, cs, bb, so, sow, ba, obp, slg, 
 				ops, tb, gdp, hbp, sh, sf, ibb, roe, babip, topsplus, sopsplus, createddate
 		FROM 	(
@@ -270,17 +186,14 @@ func (s *Server) GetTeamPitchingSplits(w http.ResponseWriter, r *http.Request) {
 	if ok := checkWriteError(err, http.StatusInternalServerError, w); ok {
 		return
 	}
-	pitchingSplits, err := scanData(rows, "pitchingsplits")
-	if ok := checkWriteError(err, http.StatusInternalServerError, w); ok {
-		return
-	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(pitchingSplits)
 }
 
 // GetAllBaserunning fetches most recent baserunning data for all MLB teams; endpoint: /api/v1/mlb/splits/baserunning
 func (s *Server) GetAllBaserunning(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.Dbc.Db.Queryx(
+	baserunning := []Baserunner{}
+	err := s.Dbc.Db.Select(&baserunning,
 		`SELECT	id, teamabbrev, name, age, pa, roe, xi, rspct, sbo, sb, cs, sbpct, sb2, cs2, sb3, cs3, sbh, csh, 
 				po, pcs, oob, oob1, oob2, oob3, oobhm, bt, xbtpct, firsts, firsts2, firsts3, firstd, firstd3, firstdh, seconds, seconds3, secondsh, createddate
 		FROM 	(
@@ -292,10 +205,6 @@ func (s *Server) GetAllBaserunning(w http.ResponseWriter, r *http.Request) {
 	if ok := checkWriteError(err, http.StatusInternalServerError, w); ok {
 		return
 	}
-	baserunning, err := scanData(rows, "baserunning")
-	if ok := checkWriteError(err, http.StatusInternalServerError, w); ok {
-		return
-	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(baserunning)
 }
@@ -303,7 +212,8 @@ func (s *Server) GetAllBaserunning(w http.ResponseWriter, r *http.Request) {
 // GetTeamBaserunning fetches most recent baserunning data for specified MLB team; endpoint: /api/v1/mlb/splits/baserunning/:teamabbrev
 func (s *Server) GetTeamBaserunning(w http.ResponseWriter, r *http.Request) {
 	p := getParams(r.Context())
-	rows, err := s.Dbc.Db.Queryx(
+	baserunning := []Baserunner{}
+	err := s.Dbc.Db.Select(&baserunning,
 		`SELECT	id, teamabbrev, name, age, pa, roe, xi, rspct, sbo, sb, cs, sbpct, sb2, cs2, sb3, cs3, sbh, csh, 
 				po, pcs, oob, oob1, oob2, oob3, oobhm, bt, xbtpct, firsts, firsts2, firsts3, firstd, firstd3, firstdh, seconds, seconds3, secondsh, createddate
 		FROM 	(
@@ -313,10 +223,6 @@ func (s *Server) GetTeamBaserunning(w http.ResponseWriter, r *http.Request) {
 					WHERE	t.teamabbrev = $1
 				) x
 		WHERE rnk = 1`, p.ByName("teamabbrev"))
-	if ok := checkWriteError(err, http.StatusInternalServerError, w); ok {
-		return
-	}
-	baserunning, err := scanData(rows, "baserunning")
 	if ok := checkWriteError(err, http.StatusInternalServerError, w); ok {
 		return
 	}
