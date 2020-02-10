@@ -12,7 +12,6 @@ import (
 type Server struct {
 	Dbc    *db.Container
 	Router *httprouter.Router
-	// email  *EmailSender
 }
 
 // Routes

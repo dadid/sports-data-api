@@ -48,7 +48,7 @@ func (s *Server) generateToken() http.HandlerFunc {
 			return
 		}
 		if s.validateCredentials(user) {
-			expirationTime := time.Now().Add(24 * time.Hour)
+			expirationTime := time.Now().Add(72 * time.Hour)
 			// Create the JWT claims, which includes the username, password and expiration time
 			claims := &Claims{
 				Username: user.Username,

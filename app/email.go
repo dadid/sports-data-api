@@ -1,4 +1,4 @@
-package email
+package app
 
 import (
 	"encoding/json"
@@ -9,7 +9,7 @@ import (
 	"gopkg.in/gomail.v2"
 )
 
-type emailconfig struct {
+type emailConfig struct {
 	Host string `json:"host"`
 	Port int    `json:"port"`
 	User string `json:"user"`
@@ -18,15 +18,15 @@ type emailconfig struct {
 
 var (
 	ch = make(chan *gomail.Message)
-	// Emailconf is the universal email configuration
-	Emailconf emailconfig
-	_         = json.Unmarshal([]byte(os.Getenv("SBD_API_EMAIL_CONFIG")), &Emailconf)
+	// EmailConf is the universal email configuration
+	EmailConf emailConfig
+	_         = json.Unmarshal([]byte(os.Getenv("SBD_API_EMAIL_CONFIG")), &EmailConf)
 )
 
-func emailDaemon() {
-	d := gomail.NewDialer(Emailconf.Host, Emailconf.Port, Emailconf.User, Emailconf.Pass)
+func (s *Server) emailDaemon() {
+	d := gomail.NewDialer(EmailConf.Host, EmailConf.Port, EmailConf.User, EmailConf.Pass)
 
-	var s gomail.SendCloser
+	var sc gomail.SendCloser
 	var err error
 	open := false
 	for {
@@ -36,18 +36,18 @@ func emailDaemon() {
 				return
 			}
 			if !open {
-				if s, err = d.Dial(); err != nil {
+				if sc, err = d.Dial(); err != nil {
 					panic(err)
 				}
 				open = true
 			}
-			if err := gomail.Send(s, m); err != nil {
+			if err := gomail.Send(sc, m); err != nil {
 				log.Println(err)
 			}
 		// close SMTP server connection if no email was sent in the last 30 seconds
 		case <-time.After(30 * time.Second):
 			if open {
-				if err := s.Close(); err != nil {
+				if err := sc.Close(); err != nil {
 					panic(err)
 				}
 				open = false
@@ -56,19 +56,19 @@ func emailDaemon() {
 	}
 }
 
-func createSendEmail() {
+func (s *Server) createSendEmail() {
 	m := gomail.NewMessage()
-	m.SetHeader("From", Emailconf.User)
+	m.SetHeader("From", EmailConf.User)
 	m.SetHeader("To", "mstockunc@gmail.com")
 	// m.SetAddressHeader("Cc", "dan@example.com", "Dan")
 	m.SetHeader("Subject", "Email Notification Test.")
 	m.SetBody("text/html", "Hello <b>Stock</b>!")
 	// m.Attach("C:/Users/Daniel/item.jpg")
-	sendEmail(m)
+	s.sendEmail(m)
 }
 
-func sendEmail(m *gomail.Message) {
-	d := gomail.NewDialer(Emailconf.Host, Emailconf.Port, Emailconf.User, Emailconf.Pass)
+func (s *Server) sendEmail(m *gomail.Message) {
+	d := gomail.NewDialer(EmailConf.Host, EmailConf.Port, EmailConf.User, EmailConf.Pass)
 	if err := d.DialAndSend(m); err != nil {
 		panic(err)
 	}
