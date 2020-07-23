@@ -4,7 +4,7 @@ import (
 	"log"
 	"net/http"
 	"time"
-	"sportsbetting-data-api-chi_router/db"
+	"sports-data-api/db"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
@@ -14,7 +14,6 @@ import (
 type Server struct {
 	Dbc    *db.Container
 	Router *chi.Mux
-	// email  *EmailSender
 }
 
 // Routes

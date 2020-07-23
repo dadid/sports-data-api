@@ -2,22 +2,31 @@ package main
 
 import (
 	"log"
-	"sportsbetting-data-api-chi_router/app"
-	"sportsbetting-data-api-chi_router/db"
+	"os"
+	"sports-data-api/app"
+	"sports-data-api/db"
 
 	"github.com/go-chi/chi"
+)
+var (
+	Rdbms = os.Getenv("SBD_RDMBS")
+	Host = os.Getenv("SBD_DB_HOST")
+	Port = os.Getenv("SBD_DB_PORT")
+	User = os.Getenv("SBD_DB_USER")
+	Password = os.Getenv("SBD_DB_PASSWORD")
+	Database = os.Getenv("SBD_DATABASE")
 )
 
 func main() {
 	r := chi.NewRouter()
 	dbc := &db.Container{
 		Conf: db.Dbconfig{
-			Rdbms:    "postgres",
-			Host:     "local_postgres",
-			Port:     "5432",
-			User:     "postgres",
-			Password: "Hotdog10!",
-			Database: "data0",
+			Rdbms:    Rdbms,
+			Host:     Host,
+			Port:     Port,
+			User:     User,
+			Password: Password,
+			Database: Database,
 			WinAuth:  false,
 		},
 	}

@@ -15,3 +15,7 @@
 #Ignore Go setup files
 *.mod
 *.sum
+
+/app/email.go
+/db/ca
+/db/postgres_jwtauth_setup.sql
