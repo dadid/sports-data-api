@@ -4,15 +4,15 @@ services:
         image: "postgres-ssl"
         command: -c ssl=on -c ssl_cert_file=/var/lib/postgresql/server.crt -c ssl_key_file=/var/lib/postgresql/server.key
         environment:
-            POSTGRES_DB: postgres
-            POSTGRES_USER: postgres
-            POSTGRES_PASSWORD: Hotdog10!
+            POSTGRES_DB: ${SBD_DATABASE}
+            POSTGRES_USER: ${SBD_DB_USER}
+            POSTGRES_PASSWORD: ${SBD_DB_PASSWORD}
         container_name:
             "dev-postgres"
         volumes:
             - postgresdata:/var/lib/postgresql/data/
         ports:
-            - "5432:5432"
+            - "${SBD_DB_PORT}:${SBD_DB_PORT}"
         restart: unless-stopped
     pgadmin:
         image: "dpage/pgadmin4"
@@ -27,13 +27,13 @@ services:
     app:
         image: "sports-data-api:latest"
         environment:
-            - SD_API_EMAIL_CONFIG=${SD_API_EMAIL_CONFIG}
-            - SD_API_SECRET_KEY=${SD_API_SECRET_KEY}
+            - SD_API_EMAIL_CONFIG=${SBD_API_EMAIL_CONFIG}
+            - SD_API_SECRET_KEY=${SBD_API_SECRET_KEY}
         container_name: "sports-data-api"
         ports:
             - "8600:8600"
         depends_on: 
-        - database
+            - database
         restart: always
 volumes:
     postgresdata:
