@@ -13,6 +13,7 @@ import pandas as pd
 import numpy as np
 import psycopg2
 import subprocess
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -107,11 +108,11 @@ def config_logger():
 def init_db_conn():
     try:
         conn = psycopg2.connect(
-            user="postgres",
-            password="Hotdog10!",
-            host="127.0.0.1",
-            port="5432",
-            database="data0")
+            user=os.environ['SBD_DB_USER'],
+            password=os.environ['SBD_DB_PASSWORD'],
+            host=os.environ['SBD_DB_HOST'],
+            port=os.environ['SBD_DB_POST'],
+            database=os.environ['SBD_DATABASE'])
         return conn
     except psycopg2.Error as e:
         raise ValueError(f'Connection to database failed! - {e.pgerror}.')
