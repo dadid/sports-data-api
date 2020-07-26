@@ -14,14 +14,13 @@ import (
 
 // JwtToken represents an authorization token
 type JwtToken struct {
-	Token string `json:"token"`
+	Token string
 }
 
 // Claims is an embedded type to add fields to JWT StandardClaims
 type Claims struct {
-	Username           string `json:"username"`
-	Password           string `json:"password"`
-	jwt.StandardClaims `json:"claims"`
+	Username           string
+	jwt.StandardClaims
 }
 
 // User represents user object for JWT authentication
