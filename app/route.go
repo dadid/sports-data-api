@@ -51,8 +51,5 @@ func (s *Server) routes() {
 // Start initializes routes and starts server
 func (s *Server) Start() {
 	s.routes()
-	go func () {
-		s.EmailSender.emailDaemon()
-	}()
 	log.Fatal(http.ListenAndServe(":8600", s.Router))
 }

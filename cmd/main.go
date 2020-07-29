@@ -17,12 +17,6 @@ var (
 	Database = os.Getenv("SBD_DATABASE")
 )
 
-var (
-	// EmailConf is the universal email configuration
-	EmailConf app.EmailConfig
-	_         = json.Unmarshal([]byte(os.Getenv("SBD_API_EMAIL_CONFIG")), &EmailConf)
-)
-
 func main() {
 	r := chi.NewRouter()
 	dbc := &db.Container{
@@ -40,14 +34,9 @@ func main() {
 	if err != nil {
 		log.Println(err.Error())
 	}
-	em := &app.EmailSender{
-		Conf: EmailConf,
-	}
 	server := &app.Server{
 		Dbc:         dbc,
 		Router:      r,
-		EmailSender: em,
 	}
 	server.Start()
-	server.EmailSender.CreateSendEmail()
 }
