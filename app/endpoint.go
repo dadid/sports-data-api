@@ -38,7 +38,6 @@ func (s *Server) GenerateToken() http.HandlerFunc {
 			// Create the JWT claims, which includes the username, password and expiration time
 			claims := &Claims{
 				Username: user.Username,
-				Password: user.Password,
 				StandardClaims: jwt.StandardClaims{
 					ExpiresAt: expirationTime.Unix(), // JWT expiration time is expressed as unix milliseconds
 				},

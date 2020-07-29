@@ -17,4 +17,6 @@
 *.mod
 *.sum
 
-email.go
+/app/email.go
+/db/ca
+/db/postgres_jwtauth_setup.sql
