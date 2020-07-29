@@ -1,6 +1,6 @@
 import logging, time, datetime, glob
 from pathlib import Path
-from baseball_ref_queries import MASTER_DICT, AUDIT_INSERT
+from master_dict import *
 from multiprocessing import Queue
 from threading import Thread
 from selenium import webdriver
@@ -16,15 +16,49 @@ import subprocess
 import os
 
 logger = logging.getLogger(__name__)
+handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s - %(name)s:%(funcName)s:%(lineno)d - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 
 class SeleniumCrawler:
 
-    def __init__(self, driver_opts: list = None, num_threads: int = 1, selenium_data: list = []):
+    def __init__(self, driver_opts: list=None, num_threads: int=1):
         self._driver_opts = driver_opts
         self.num_threads = num_threads
-        self.selenium_data = selenium_data
         self.selenium_data_queue = Queue()
         self.worker_queue = Queue()
+        self.data_dict = {
+            "batting": {
+                "url": MASTER_DICT[0]["url"],
+                "html_tags": {
+                    0: MASTER_DICT[0]["htmltag"],
+                    1: MASTER_DICT[1]["htmltag"]
+                }
+            },
+            "pitching": {
+                "url": MASTER_DICT[2]["url"],
+                "html_tags": {
+                    2: MASTER_DICT[2]["htmltag"],
+                    3: MASTER_DICT[3]["htmltag"]
+                }
+            },
+            "batting_splits": {
+                "url": MASTER_DICT[4]["url"],
+                "html_tags": {
+                    4: MASTER_DICT[4]["htmltag"],
+                    5: MASTER_DICT[5]["htmltag"]
+                }
+            },
+            "pitching_splits": {
+                "url": MASTER_DICT[6]["url"],
+                "html_tags": {
+                    6: MASTER_DICT[6]["htmltag"],
+                    7: MASTER_DICT[7]["htmltag"]
+                }
+            }
+        }
 
     def init_selenium_workers(self):
         self._selenium_workers = {}
@@ -40,9 +74,8 @@ class SeleniumCrawler:
             self.worker_queue.put(worker_id)
     
     def selenium_task(self, worker: webdriver, data):
-        teamname = data[0]
-        data_dict = data[1]
-        for _, value in data_dict.items(): # loop over all URL sets in dictionary
+        teamname = data
+        for _, value in self.data_dict.items(): # loop over all URL sets in dictionary
             try:
                 worker.get(value["url"].format(teamname))
             except TimeoutException:
@@ -71,39 +104,31 @@ class SeleniumCrawler:
         logger.info('selenium listener started')
         while True:
             current_data = data_queue.get()
-            if current_data == '_stop_':
-                logger.warning('_stop_ encountered, killing worker thread') # If a stop is encountered then kill the current worker
-                data_queue.put(current_data) # Put stop back onto the queue to poison other workers listening
+            if current_data == '_kill_':
+                logger.warning('_kill_ encountered')
+                data_queue.put(current_data)
                 break
-            logger.info(f'Pulled item {current_data[0]} from the data queue')
-            worker_id = worker_queue.get() # Get the ID of any currently free workers from the worker queue
+            logger.info(f'Pulled {current_data[0]} from queue')
+            worker_id = worker_queue.get()
             worker = self._selenium_workers[worker_id] 
-            self.selenium_task(worker, current_data) # Assign current worker and current data to your selenium function
-            worker_queue.put(worker_id) # Put the worker back into the worker queue
+            self.selenium_task(worker, current_data)
+            worker_queue.put(worker_id)
 
     def run(self):
         self.init_selenium_workers()
-        # Create one queue listener thread per selenium worker
-        logger.info('starting selenium background processes')
-        selenium_processes = [Thread(target=self.selenium_queue_listener, args=(self.selenium_data_queue, self.worker_queue)) for _ in self._selenium_workers.keys()]
+        logger.info('starting selenium processes')
+        selenium_processes = [Thread(target=self.selenium_queue_listener, args=(self.selenium_data_queue, self.worker_queue)) for i in self.num_threads]
         for p in selenium_processes:
             p.daemon = True
             p.start()
-        logger.info('adding data to data queue')
-        for d in self.selenium_data:
+        data = create_data_list()
+        for d in data:
             self.selenium_data_queue.put(d)
-        self.selenium_data_queue.put('_stop_')
-        logger.info('waiting for listener threads to complete')
+        self.selenium_data_queue.put('_kill_')
         for p in selenium_processes:
             p.join()
-        # Quit all the web workers elegantly in the background
-        logger.info('tearing down web workers gracefully - sucessful web crawl')
         for worker in self._selenium_workers.values():
             worker.quit()
-
-def config_logger():
-    logFormatter = '%(asctime)s - %(levelname)s - %(message)s'
-    logging.basicConfig(format=logFormatter, level=logging.INFO)
 
 def init_db_conn():
     try:
@@ -141,55 +166,19 @@ def html_to_dataframe(webelem, teamname: str) -> pd.DataFrame:
     return df
 
 def create_data_list() -> list:
-    try:
-        conn = init_db_conn()
-    except ValueError as e:
-        logger.info(e)
-        exit(1)
+    conn = init_db_conn()
     data_list = []
     with conn.cursor() as cur:
         cur.execute('SELECT teamabbrev FROM baseballreference.team WHERE ORDER BY id')
         for row in cur:
-            data_dict = {}
-            data_dict["batting"] = {
-                "url": MASTER_DICT[0]["url"],
-                "html_tags": {
-                    0: MASTER_DICT[0]["htmltag"],
-                    1: MASTER_DICT[1]["htmltag"]
-                }
-            }
-            data_dict["pitching"] = {
-                "url": MASTER_DICT[2]["url"],
-                "html_tags": {
-                    2: MASTER_DICT[2]["htmltag"],
-                    3: MASTER_DICT[3]["htmltag"]
-                }
-            }
-            data_dict["batting_splits"] = {
-                "url": MASTER_DICT[4]["url"],
-                "html_tags": {
-                    4: MASTER_DICT[4]["htmltag"],
-                    5: MASTER_DICT[5]["htmltag"]
-                }
-            }
-            data_dict["pitching_splits"] = {
-                "url": MASTER_DICT[6]["url"],
-                "html_tags": {
-                    6: MASTER_DICT[6]["htmltag"],
-                    7: MASTER_DICT[7]["htmltag"]
-                }
-            }
-            data_list.append((row[0], data_dict))
+            data_list.append(row[0])
+    conn.close()
     
     return data_list
 
-def insert_audit(teamname: str, statusid: int, index: int = None, error: str = None, conn=None):
+def insert_audit(teamname: str, statusid: int, index: int=None, error: str=None, conn=None):
     if conn is None:
-        try:
-            conn = init_db_conn()
-        except ValueError as e:
-            logger.info(e)
-            exit(1)
+        conn = init_db_conn()
     with conn.cursor() as cur:
         try:
             cur.execute(AUDIT_INSERT, {
@@ -206,11 +195,7 @@ def insert_audit(teamname: str, statusid: int, index: int = None, error: str = N
 
 def insert_data(df, index: int, teamname: str, conn=None):
     if conn is None:
-        try:
-            conn = init_db_conn()
-        except ValueError as e:
-            logger.info(e)
-            exit(1)
+        conn = init_db_conn()
     df_tuples = tuple(tuple(x) for x in df.values) # convert dataframe to a tuple of tuples; each inner tuple is one row
     with conn.cursor() as cur:
         values_string = ','.join(cur.mogrify(MASTER_DICT[index]["insertvalues"], x).decode('utf-8') for x in df_tuples)
@@ -222,25 +207,23 @@ def insert_data(df, index: int, teamname: str, conn=None):
             insert_audit(teamname, 0, index=index, conn=conn)
         except psycopg2.Error as e:
             insert_audit(teamname, 1, index=index, error=e, conn=conn)
-            return
         finally: 
             conn.close()
 
 def docker_exec_database_backup(zipfile=False):
-    backup_path = Path(r'C:\Users\Daniel\01.devel\sportsbetting-data-api\db-backups')
+    backup_path = Path(r'C:\Users\Daniel\01.devel\sports-data-api\db-backups')
     getdate = datetime.datetime.now().strftime('%Y-%m-%d_%H%M%S')
     if zipfile is False:
         backup_file = backup_path / f'baseball_ref_db_backup_{getdate}.sql'
-        subprocess.call(f'docker exec -t localpostgres0 pg_dumpall -c -U postgres | {backup_file}', shell=True)
+        subprocess.call(f'docker exec -t dev-postgres pg_dumpall -c -U postgres | {backup_file}', shell=True)
     else:
         backup_file = backup_path / f'baseball_ref_db_backup_{getdate}.zip'
-        subprocess.call(f'docker exec -t localpostgres0 pg_dumpall -c -U postgres | gzip > {backup_file}', shell=True)
+        subprocess.call(f'docker exec -t dev-postgres pg_dumpall -c -U postgres | gzip > {backup_file}', shell=True)
 
 def main():
     user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.119 Safari/537.36'
     extension_dir = r'C:\Users\Daniel\01.devel\chrome_anti_detection_extension'
     driver_opts = [f'user-agent={user_agent}', 'log-level=3', f'load-extension={extension_dir}']
-    config_logger()
     bot = SeleniumCrawler(
         driver_opts=driver_opts, 
         num_threads=5,
