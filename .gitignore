@@ -6,10 +6,9 @@
 *.sh
 *.mod
 *.sum
+*.pyc
 
 /db-backups
 /app/middleware_depr.go
 /app/email.go
-/db/ca
 /db/postgres_jwtauth_setup.sql
-/scraper-python/__pychace__
