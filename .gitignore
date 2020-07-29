@@ -3,6 +3,7 @@
 
 # Ignore db-backups folder
 /db-backups
+/app/middleware_depr.go
 
 # Ignore executable files
 *.exe
@@ -15,3 +16,5 @@
 #Ignore Go setup files
 *.mod
 *.sum
+
+email.go

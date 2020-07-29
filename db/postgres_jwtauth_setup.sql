@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS basic_auth.users (
     role     NAME NOT NULL CHECK (LENGTH(role) < 512),
     verified BOOLEAN NOT NULL default false
 );
+
 -- function to check if inserted user role exists
 CREATE OR REPLACE FUNCTION basic_auth.check_role_exists() RETURNS trigger AS $$
 BEGIN
@@ -18,6 +19,7 @@ BEGIN
     RETURN NEW;
 END
 $$ LANGUAGE plpgsql;
+
 -- trigger to call role check function
 DROP TRIGGER IF EXISTS ensure_user_role_exists ON basic_auth.users;
 CREATE TRIGGER ensure_user_role_exists
@@ -33,6 +35,7 @@ BEGIN
     RETURN NEW;
 END
 $$ LANGUAGE plpgsql;
+
 -- trigger to call password encryption function
 DROP TRIGGER IF EXISTS encrypt_pass on basic_auth.users;
 CREATE TRIGGER encrypt_pass

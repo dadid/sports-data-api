@@ -1,3 +1,4 @@
+# Dockerfile to create a postgres image with SSL key/cert
 FROM postgres:latest
 
 # On Windows root will own the files, and they will have permissions 755

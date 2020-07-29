@@ -1,30 +1,29 @@
 package app
 
 import (
-	"encoding/json"
 	"log"
-	"os"
 	"time"
 
 	"gopkg.in/gomail.v2"
 )
 
-type emailConfig struct {
+// EmailConfig holds the email daemon config
+type EmailConfig struct {
 	Host string `json:"host"`
 	Port int    `json:"port"`
 	User string `json:"user"`
 	Pass string `json:"password"`
 }
 
-var (
-	ch = make(chan *gomail.Message)
-	// EmailConf is the universal email configuration
-	EmailConf emailConfig
-	_ = json.Unmarshal([]byte(os.Getenv("SBD_API_EMAIL_CONFIG")), &EmailConf)
-)
+// EmailSender holds an email config and runs an email sending daemon
+type EmailSender struct {
+	Conf EmailConfig
+}
 
-func (s *Server) emailDaemon() {
-	d := gomail.NewDialer(EmailConf.Host, EmailConf.Port, EmailConf.User, EmailConf.Pass)
+var ch = make(chan *gomail.Message)
+
+func (e *EmailSender) emailDaemon() {
+	d := gomail.NewDialer(e.Conf.Host, e.Conf.Port, e.Conf.User, e.Conf.Pass)
 
 	var sc gomail.SendCloser
 	var err error
@@ -56,20 +55,25 @@ func (s *Server) emailDaemon() {
 	}
 }
 
-func (s *Server) createSendEmail() {
+// CreateSendEmail sends an email
+func (e *EmailSender) CreateSendEmail() {
 	m := gomail.NewMessage()
-	m.SetHeader("From", EmailConf.User)
-	m.SetHeader("To", "mstockunc@gmail.com")
+	m.SetHeader("From", e.Conf.User)
+	m.SetHeader("To", "dadidnl@gmail.com")
 	// m.SetAddressHeader("Cc", "dan@example.com", "Dan")
 	m.SetHeader("Subject", "Email Notification Test.")
-	m.SetBody("text/html", "Hello <b>Stock</b>!")
+	m.SetBody("text/html", "Hello <b>Testing</b>!")
 	// m.Attach("C:/Users/Daniel/item.jpg")
-	s.sendEmail(m)
+	e.sendEmailOnChannel(m)
 }
 
-func (s *Server) sendEmail(m *gomail.Message) {
-	d := gomail.NewDialer(EmailConf.Host, EmailConf.Port, EmailConf.User, EmailConf.Pass)
+func (e *EmailSender) sendEmail(m *gomail.Message) {
+	d := gomail.NewDialer(e.Conf.Host, e.Conf.Port, e.Conf.User, e.Conf.Pass)
 	if err := d.DialAndSend(m); err != nil {
 		panic(err)
 	}
+}
+
+func (e *EmailSender) sendEmailOnChannel(m *gomail.Message) {
+	ch <- m
 }

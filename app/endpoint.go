@@ -238,7 +238,7 @@ func (s *Server) GetPitchingSplits() http.HandlerFunc {
 	}
 }
 
-// GetBaserunning fetches most recent baserunning data for all teamsspecified MLB team; endpoint: /api/v1/mlb/splits/baserunning/{teamabbrev
+// GetBaserunning fetches most recent baserunning data for all teamsspecified MLB team; endpoint: /api/v1/mlb/splits/baserunning/{teamabbrev}
 func (s *Server) GetBaserunning() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		team := chi.URLParam(r, "teamabbrev")
