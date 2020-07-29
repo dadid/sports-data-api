@@ -1,22 +1,15 @@
-# Ignore log files
+# Ignore
 *.log
-
-# Ignore db-backups folder
-/db-backups
-/app/middleware_depr.go
-
-# Ignore executable files
 *.exe
-
-# Ignore SSL files
 *.crt
 *.key
 *.sh
-
-#Ignore Go setup files
 *.mod
 *.sum
 
+/db-backups
+/app/middleware_depr.go
 /app/email.go
 /db/ca
 /db/postgres_jwtauth_setup.sql
+/scraper-python/__pychace__
