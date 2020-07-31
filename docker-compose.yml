@@ -5,7 +5,7 @@ services:
         command: -c ssl=on -c ssl_cert_file=/var/lib/postgresql/server.crt -c ssl_key_file=/var/lib/postgresql/server.key
         environment:
             POSTGRES_DB: ${SBD_DATABASE}
-            POSTGRES_USER: ${SBD_DB_USER}
+            POSTGRES_USERNAME: ${SBD_DB_USER}
             POSTGRES_PASSWORD: ${SBD_DB_PASSWORD}
         container_name:
             "dev-postgres"
