@@ -84,10 +84,10 @@ class SeleniumCrawler:
             self.workers[worker_id] = webdriver.Chrome(options=options)
             self.worker_queue.put(worker_id)
     
-    def selenium_task(self, data, worker=None):
+    def selenium_task(self, data):
         teamname = data
-        # worker_id = self.worker_queue.get()
-        # worker = self.workers[worker_id] 
+        worker_id = self.worker_queue.get()
+        worker = self.workers[worker_id] 
         for key, value in self.data_dict.items():
             try:
                 worker.get(value["url"].format(teamname))
@@ -111,7 +111,7 @@ class SeleniumCrawler:
                     self.insert_audit(teamname, 4, error=f'html table - {tag}')
                 self.insert_data(df, index, teamname)
             time.sleep(2 ** np.random.randint(3, 5))
-        # self.worker_queue.put(worker_id)
+        self.worker_queue.put(worker_id)
     
     def html_to_dataframe(self, webelem, teamname: str) -> pd.DataFrame:
         try:
@@ -255,13 +255,14 @@ def docker_exec_database_backup(zipfile=False):
         backup_file = backup_path / f'baseball_ref_db_backup_{getdate}.zip'
         subprocess.call(f'docker exec -t dev-postgres pg_dumpall --no-owner -c -U postgres | gzip > {backup_file}', shell=True)
 
+
 def main():
     user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.119 Safari/537.36'
     extension_dir = r'C:\Users\Daniel\01.devel\chrome_anti_detection_extension'
     driver_opts = [f'user-agent={user_agent}', 'log-level=3'] #, f'load-extension={extension_dir}']
     bot = SeleniumCrawler(driver_opts=driver_opts, num_threads=4)
-    # bot.run_threadpool()
-    bot.run()
+    bot.run_threadpool()
+
 
 if __name__ == '__main__':
     main()
