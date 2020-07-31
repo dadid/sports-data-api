@@ -4,6 +4,7 @@ MASTER_DICT = {
         "url": 'https://www.baseball-reference.com/teams/{}/2019-batting.shtml#team_batting::none',
         "htmltag": '//*[@id="team_batting"]',
         "insertquery": 'INSERT INTO baseballreference.batting VALUES {}', # done
+        "table": "team",
         "insertvalues": '(default,(select id from baseballreference.team where teamabbrev=%s),%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,default)\n'
     },
     1: {
@@ -11,6 +12,7 @@ MASTER_DICT = {
         "url": 'https://www.baseball-reference.com/teams/{}/2019-batting.shtml#team_batting::none', 
         "htmltag": '//*[@id="players_baserunning_batting"]',
         "insertquery": 'INSERT INTO baseballreference.baserunning VALUES {}', # done
+        "table": "baserunning",
         "insertvalues": '(default,(select id from baseballreference.team where teamabbrev=%s),%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,default)\n'
     },
     2: {
@@ -18,6 +20,7 @@ MASTER_DICT = {
         "url": 'https://www.baseball-reference.com/teams/{}/2019-pitching.shtml',
         "htmltag": '//*[@id="team_pitching"]',
         "insertquery": 'INSERT INTO baseballreference.pitching VALUES {}', # done
+        "table": "pitching",
         "insertvalues": '(default,(select id from baseballreference.team where teamabbrev=%s),%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,default)\n'
     },
     3: {
@@ -25,6 +28,7 @@ MASTER_DICT = {
         "url": 'https://www.baseball-reference.com/teams/{}/2019-pitching.shtml',
         "htmltag": '//*[@id="players_batting_pitching"]',
         "insertquery": 'INSERT INTO baseballreference.batting_pitching VALUES {}', # done
+        "table": "batting_pitching",
         "insertvalues": '(default,(select id from baseballreference.team where teamabbrev=%s),%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,default)\n'
     },
     4: {
@@ -32,6 +36,7 @@ MASTER_DICT = {
         "url": 'https://www.baseball-reference.com/teams/split.cgi?t=b&team={}&year=2019',
         "htmltag": '//*[@id="plato"]',
         "insertquery": 'INSERT INTO baseballreference.batting_splits VALUES {}', # done
+        "table": "batting_splits",
         "insertvalues": '(default,(select id from baseballreference.team where teamabbrev=%s),%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,default)\n'
     },
     5: {
@@ -39,6 +44,7 @@ MASTER_DICT = {
         "url": 'https://www.baseball-reference.com/teams/split.cgi?t=b&team={}&year=2019',
         "htmltag": '//*[@id="hmvis"]',
         "insertquery": 'INSERT INTO baseballreference.batting_home_away VALUES {}', # done
+        "table": "batting_home_away",
         "insertvalues": '(default,(select id from baseballreference.team where teamabbrev=%s),%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,default)\n'
     },
     6: {
@@ -46,6 +52,7 @@ MASTER_DICT = {
         "url": 'https://www.baseball-reference.com/teams/split.cgi?t=p&team={}&year=2019',
         "htmltag": '//*[@id="plato"]',
         "insertquery": 'INSERT INTO baseballreference.pitching_splits VALUES {}',
+        "table": "pitching_splits",
         "insertvalues": '(default,(select id from baseballreference.team where teamabbrev=%s),%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,default)\n'
     },
     7: {
@@ -53,8 +60,10 @@ MASTER_DICT = {
         "url": 'https://www.baseball-reference.com/teams/split.cgi?t=p&team={}&year=2019',
         "htmltag": '//*[@id="hmvis"]',
         "insertquery": 'INSERT INTO baseballreference.pitching_home_away VALUES {}',
+        "table": "pitching_home_away",
         "insertvalues": '(default,(select id from baseballreference.team where teamabbrev=%s),%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,default)\n'
     }
 }
 
-AUDIT_INSERT = "INSERT INTO baseballreference.audit VALUES (default, %(statusid)s, (select id from baseballreference.team where teamabbrev=%(teamname)s), %(tablename)s, %(error)s, default)"
+# AUDIT_INSERT = "INSERT INTO baseballreference.audit VALUES (default, %(statusid)s, (select id from baseballreference.team where teamabbrev=%(teamname)s), %(tablename)s, %(error)s, default)"
+AUDIT_INSERT = "INSERT INTO baseballreference.audit VALUES (default, :statusid, (select id from baseballreference.team where teamabbrev=:teamname), :tablename, :error, default)"

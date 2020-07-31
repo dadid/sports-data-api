@@ -9,9 +9,14 @@ from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 import numpy as np
 import psycopg2
+from sqlalchemy import create_engine, sql
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.engine import url
+from sqlalchemy import bindparam
 import subprocess
 import os
 
@@ -27,8 +32,16 @@ class SeleniumCrawler:
     def __init__(self, driver_opts: list=None, num_threads: int=1):
         self._driver_opts = driver_opts
         self.num_threads = num_threads
-        self.selenium_data_queue = Queue()
-        self.worker_queue = Queue()
+        # self.selenium_data_queue = Queue()
+        # self.worker_queue = Queue()
+        self.database = Database(
+            driver='postgresql+psycopg2',
+            user=os.environ['SBD_DB_USER'],
+            password=os.environ['SBD_DB_PASSWORD'],
+            host=os.environ['SBD_DB_HOST'],
+            port=os.environ['SBD_DB_PORT'],
+            database=os.environ['SBD_DATABASE']
+        )
         self.data_dict = {
             "batting": {
                 "url": MASTER_DICT[0]["url"],
@@ -60,22 +73,22 @@ class SeleniumCrawler:
             }
         }
 
-    def init_selenium_workers(self):
-        self._selenium_workers = {}
+    def init_workers(self):
+        self.workers = {}
+        options = None
         if self._driver_opts is not None:
             options = webdriver.ChromeOptions()
             for opt in self._driver_opts:
                 options.add_argument(opt)
         for worker_id in range(self.num_threads):
-            if self._driver_opts is not None:
-                self._selenium_workers[worker_id] = webdriver.Chrome(options=options)
-            else:    
-                self._selenium_workers[worker_id] = webdriver.Chrome()
+            self.workers[worker_id] = webdriver.Chrome(options=options)
             self.worker_queue.put(worker_id)
     
-    def selenium_task(self, worker: webdriver, data):
+    def selenium_task(self, data):
         teamname = data
-        for _, value in self.data_dict.items(): # loop over all URL sets in dictionary
+        worker_id = self.worker_queue.get()
+        worker = self.workers[worker_id] 
+        for key, value in self.data_dict.items():
             try:
                 worker.get(value["url"].format(teamname))
             except TimeoutException:
@@ -83,132 +96,147 @@ class SeleniumCrawler:
                 try:
                     worker.get(value["url"].format(teamname))
                 except TimeoutException:
-                    insert_audit(teamname, 2, error='Timeout on get request.')
+                    # self.insert_audit(teamname, 2, error='Timeout on get request.')
                     continue
-            for index, tag in value["html_tags"].items(): # loop over HTML tags associated with URL
-                try:
-                    webelem = WebDriverWait(worker, 40).until(
-                        ec.presence_of_element_located(
-                            (By.XPATH, tag)))
-                except TimeoutException:
-                    insert_audit(teamname, 3, error=f'html table - {tag}')
-                    continue
-                try:
-                    df = html_to_dataframe(webelem, teamname)
-                except ValueError:
-                    insert_audit(teamname, 4, error=f'html table - {tag}')
-                insert_data(df, index, teamname)
-            time.sleep(2 ** np.random.randint(3, 5))
-
-    def selenium_queue_listener(self, data_queue: Queue, worker_queue: Queue):
-        logger.info('selenium listener started')
-        while True:
-            current_data = data_queue.get()
-            if current_data == '_kill_':
-                logger.warning('_kill_ encountered')
-                data_queue.put(current_data)
-                break
-            logger.info(f'Pulled {current_data[0]} from queue')
-            worker_id = worker_queue.get()
-            worker = self._selenium_workers[worker_id] 
-            self.selenium_task(worker, current_data)
-            worker_queue.put(worker_id)
-
-    def run(self):
-        self.init_selenium_workers()
-        logger.info('starting selenium processes')
-        selenium_processes = [Thread(target=self.selenium_queue_listener, args=(self.selenium_data_queue, self.worker_queue)) for i in self.num_threads]
-        for p in selenium_processes:
-            p.daemon = True
-            p.start()
-        data = create_data_list()
-        for d in data:
-            self.selenium_data_queue.put(d)
-        self.selenium_data_queue.put('_kill_')
-        for p in selenium_processes:
-            p.join()
-        for worker in self._selenium_workers.values():
-            worker.quit()
-
-def init_db_conn():
-    try:
-        conn = psycopg2.connect(
-            user=os.environ['SBD_DB_USER'],
-            password=os.environ['SBD_DB_PASSWORD'],
-            host=os.environ['SBD_DB_HOST'],
-            port=os.environ['SBD_DB_POST'],
-            database=os.environ['SBD_DATABASE'])
-        return conn
-    except psycopg2.Error as e:
-        raise ValueError(f'Connection to database failed! - {e.pgerror}.')
-
-def html_to_dataframe(webelem, teamname: str) -> pd.DataFrame:
-    try:
-        html = webelem.get_attribute('outerHTML')
-        df = pd.read_html(html)[0]
-    except TimeoutError:
+            # for index, tag in value["html_tags"].items(): # loop over HTML tags associated with URL
+            #     try:
+            #         webelem = WebDriverWait(worker, 40).until(
+            #             ec.presence_of_element_located(
+            #                 (By.XPATH, tag)))
+            #     except TimeoutException:
+            #         self.insert_audit(teamname, 3, error=f'html table - {tag}')
+            #         continue
+            #     try:
+            #         df = self.html_to_dataframe(webelem, teamname)
+            #     except ValueError:
+            #         self.insert_audit(teamname, 4, error=f'html table - {tag}')
+            #     self.insert_data(df, index, teamname)
+            # time.sleep(2 ** np.random.randint(3, 5))
+        self.worker_queue.put(worker_id)
+    
+    def html_to_dataframe(self, webelem, teamname: str) -> pd.DataFrame:
         try:
             html = webelem.get_attribute('outerHTML')
             df = pd.read_html(html)[0]
-        except:
-            raise ValueError('Error getting outerHTML attribute')
+        except TimeoutError:
+            try:
+                html = webelem.get_attribute('outerHTML')
+                df = pd.read_html(html)[0]
+            except:
+                raise ValueError('Error getting outerHTML attribute')
+        if "Rk" in df.columns:
+            df = df[df.Rk != "Rk"]
+        if "Name" in df.columns:
+            df = df[df.Name != "Name"]
+            df = df[~df.Name.str.contains("total", case=False)]
+            df = df[~df.Name.str.contains("rank in 15", case=False)]
+            df = df[~df.Name.str.contains("average", case=False)]
+        df["Team"] = teamname
+        df = df[['Team'] + [col for col in df.columns if col != 'Team']]
+
+        return df
     
-    if "Rk" in df.columns:
-        df = df[df["Rk"] != "Rk"]
-    if "Name" in df.columns:
-        df = df[df["Name"] != "Name"]
-        df = df[~df["Name"].str.contains("total", case=False)]
-        df = df[~df["Name"].str.contains("rank in 15", case=False)]
-        df = df[~df["Name"].str.contains("average", case=False)]
-    df["Team"] = teamname
-    df = df[['Team'] + [col for col in df.columns if col != 'Team']]
-
-    return df
-
-def create_data_list() -> list:
-    conn = init_db_conn()
-    data_list = []
-    with conn.cursor() as cur:
-        cur.execute('SELECT teamabbrev FROM baseballreference.team WHERE ORDER BY id')
-        for row in cur:
-            data_list.append(row[0])
-    conn.close()
+    def create_data_list(self):
+        with self.database.connect() as conn:
+            self.data = []
+            res = conn.execute(sql.text('SELECT teamabbrev FROM baseballreference.team WHERE ORDER BY id'))
+            for row in res:
+                self.data.append(row['teamabbrev'])
     
-    return data_list
-
-def insert_audit(teamname: str, statusid: int, index: int=None, error: str=None, conn=None):
-    if conn is None:
-        conn = init_db_conn()
-    with conn.cursor() as cur:
-        try:
-            cur.execute(AUDIT_INSERT, {
+    def insert_audit(self, teamname, statusid, index=None, error=None):
+        with self.database.connect() as conn:
+            conn.execute(AUDIT_INSERT, {
                 "statusid": statusid, 
                 "teamname": teamname,
                 "tablename": index if index is None else MASTER_DICT[index]["tablename"], 
                 "error": error})
-            conn.commit()
-        except psycopg2.Error as e:
-            logger.info(e)
-            exit(1)
-        finally:
-            conn.close()
 
-def insert_data(df, index: int, teamname: str, conn=None):
-    if conn is None:
-        conn = init_db_conn()
-    df_tuples = tuple(tuple(x) for x in df.values) # convert dataframe to a tuple of tuples; each inner tuple is one row
-    with conn.cursor() as cur:
+    def insert_data(self, df, index, teamname):
+        with self.database.connect() as conn:
+            try:
+                df.to_sql(
+                    name=MASTER_DICT[index]["table"],
+                    con=engine,
+                    index=False,
+                    if_exists='append',
+                    chunksize=1000
+                )
+                self.insert_audit(teamname, 0, index=index)
+            except SQLAlchemyError as e:
+                self.insert_audit(teamname, 1, index=index, error=e)
+
+    def insert_data_depr(self, df, index, teamname):
+        df_tuples = tuple(tuple(x) for x in df.values) # convert dataframe to a tuple of tuples; each inner tuple is one row
         values_string = ','.join(cur.mogrify(MASTER_DICT[index]["insertvalues"], x).decode('utf-8') for x in df_tuples)
         values_string = values_string.replace("'NaN'::float", 'NULL')
         query = MASTER_DICT[index]["insertquery"].format(values_string)
-        try:
-            cur.execute(query)
-            conn.commit()
-            insert_audit(teamname, 0, index=index, conn=conn)
-        except psycopg2.Error as e:
-            insert_audit(teamname, 1, index=index, error=e, conn=conn)
-        finally: 
-            conn.close()
+        with self.database.connect() as conn:
+            try:
+                conn.execute(query)
+                self.insert_audit(teamname, 0, index=index)
+            except SQLAlchemyError as e:
+                self.insert_audit(teamname, 1, index=index, error=e)
+    
+    def listener(self, data_queue: Queue, worker_queue: Queue):
+        logger.info('listener started')
+        while True:
+            current_data = data_queue.get()
+            if current_data == '_kill_':
+                logger.warning('_kill_ found')
+                data_queue.put(current_data)
+                break
+            logger.info(f'Pulled {current_data[0]} from queue')
+            worker_id = worker_queue.get()
+            worker = self.workers[worker_id] 
+            self.selenium_task(worker, current_data)
+            worker_queue.put(worker_id)
+
+    def run(self):
+        self.init_workers()
+        self.create_data_list()
+        logger.info('starting workers')
+        selenium_processes = [Thread(target=self.listener, args=(self.selenium_data_queue, self.worker_queue)) for i in self.num_threads]
+        for p in selenium_processes:
+            p.daemon = True
+            p.start()
+        for d in self.data:
+            self.selenium_data_queue.put(d)
+        self.selenium_data_queue.put('_kill_')
+        for p in selenium_processes:
+            p.join()
+        for worker in self.workers.values():
+            worker.quit()
+
+    def run_threadpool(self):
+        self.create_data_list()
+        self.init_workers()
+        with ThreadPoolExecutor(max_workers=self.num_threads) as executor:
+            executor.map(self.selenium_task, self.data)
+
+
+class Database:
+    
+    def __init__(self, driver, host, database, user, password, port, is_trusted=False, read_only=False):
+        self.driver = driver
+        self.host = host
+        self.database = database
+        self.user = user
+        self.password = password
+        self.port = port
+        self.is_trusted = 'yes' if is_trusted else 'no'
+        self.read_only = read_only
+
+    def connect(self, execute_many=False):
+        conn_str = url.URL(
+            username=self.user,
+            password=self.password,
+            host=self.host,
+            port=self.port,
+            database=self.database,
+            query={'driver': self.driver, 'readonly': self.read_only, 'trusted_connection': self.is_trusted}
+        )
+        return create_engine(conn_str, fast_executemany=execute_many)
+
 
 def docker_exec_database_backup(zipfile=False):
     backup_path = Path(r'C:\Users\Daniel\01.devel\sports-data-api\db-backups')
@@ -224,12 +252,10 @@ def main():
     user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.119 Safari/537.36'
     extension_dir = r'C:\Users\Daniel\01.devel\chrome_anti_detection_extension'
     driver_opts = [f'user-agent={user_agent}', 'log-level=3', f'load-extension={extension_dir}']
-    bot = SeleniumCrawler(
-        driver_opts=driver_opts, 
-        num_threads=5,
-        selenium_data=create_data_list())
-    bot.run()
-    docker_exec_database_backup(zipfile=True)
+    bot = SeleniumCrawler(driver_opts=driver_opts, num_threads=5)
+    # bot.run()
+    bot.run_threadpool()
+    # docker_exec_database_backup(zipfile=True)
 
 if __name__ == '__main__':
     main()
