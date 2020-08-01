@@ -28,11 +28,10 @@ logger.setLevel(logging.INFO)
 
 class SeleniumCrawler:
 
-    def __init__(self, driver_opts: list=None, num_threads: int=1):
-        self._driver_opts = driver_opts
+    def __init__(self, season, driver_opts: list=None, num_threads: int=1):
+        self.season = season
+        self.driver_opts = driver_opts
         self.num_threads = num_threads
-        self.data_queue = Queue()
-        self.worker_queue = Queue()
         self.database = Database(
             driver='postgresql+psycopg2',
             user=os.environ['SBD_DB_USER'],
@@ -45,7 +44,7 @@ class SeleniumCrawler:
             "batting": {
                 "url": MASTER_DICT[0]["url"],
                 "html_tags": {
-                    0: MASTER_DICT[0]["htmltag"],
+                    # 0: MASTER_DICT[0]["htmltag"],
                     1: MASTER_DICT[1]["htmltag"]
                 }
             },
@@ -75,9 +74,9 @@ class SeleniumCrawler:
     def init_workers(self):
         self.workers = {}
         options = None
-        if self._driver_opts is not None:
+        if self.driver_opts is not None:
             options = webdriver.ChromeOptions()
-            for opt in self._driver_opts:
+            for opt in self.driver_opts:
                 options.add_argument(opt)
         for worker_id in range(self.num_threads):
             self.workers[worker_id] = webdriver.Chrome(options=options)
@@ -90,11 +89,11 @@ class SeleniumCrawler:
         worker = self.workers[worker_id] 
         for key, value in self.data_dict.items():
             try:
-                worker.get(value["url"].format(teamname))
+                worker.get(value["url"].format(teamname, self.season))
             except TimeoutException:
                 time.sleep(3)
                 try:
-                    worker.get(value["url"].format(teamname))
+                    worker.get(value["url"].format(teamname, self.season))
                 except TimeoutException:
                     self.insert_audit(teamid, 2, error='Timeout on get request.')
             for index, tag in value["html_tags"].items(): # loop over HTML tags associated with URL
@@ -143,7 +142,16 @@ class SeleniumCrawler:
                 'rs%': 'rspct',
                 'sb%': 'sbpct',
                 '2b':  'twob',
-                '3b':  'threeb'
+                '3b':  'threeb',
+                '1sts': 'firsts',
+                '1sts2': 'firsts2',
+                '1sts3': 'firsts3',
+                '1std': 'firstd',
+                '1std3': 'firstd3',
+                '1stdh': 'firstdh',
+                '2nds': 'seconds',
+                '2nds3': 'seconds3',
+                '2ndsh': 'secondsh',
                 },
             axis='columns',
             inplace=True)
@@ -184,36 +192,6 @@ class SeleniumCrawler:
         except SQLAlchemyError as e:
             self.insert_audit(teamid, 1, index=index, error=e)
     
-    def listen_depr(self, data_queue: Queue, worker_queue: Queue):
-        logger.info('listener started')
-        while True:
-            current_data = data_queue.get()
-            if current_data == '_kill_':
-                logger.warning('_kill_ found')
-                data_queue.put(current_data)
-                break
-            logger.info(f'Pulled {current_data} from queue')
-            worker_id = worker_queue.get()
-            worker = self.workers[worker_id] 
-            self.task(current_data, worker)
-            worker_queue.put(worker_id)
-
-    def run_depr(self):
-        self.init_workers()
-        self.create_data_list()
-        logger.info('starting workers')
-        selenium_processes = [Thread(target=self.listen, args=(self.data_queue, self.worker_queue)) for i in range(self.num_threads)]
-        for p in selenium_processes:
-            p.daemon = True
-            p.start()
-        for d in self.data:
-            self.data_queue.put(d)
-        self.data_queue.put('_kill_')
-        for p in selenium_processes:
-            p.join()
-        for worker in self.workers.values():
-            worker.quit()
-
     def run(self):
         self.create_data_list()
         self.init_workers()
@@ -260,8 +238,8 @@ def docker_exec_database_backup(zipfile=False):
 def main():
     user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.119 Safari/537.36'
     ext_path = Path.home() / '01.devel' / 'chrome_anti_detection_extension'
-    driver_opts = [f'user-agent={user_agent}', 'log-level=3'] # f'load-extension={ext_path.absolute()}']
-    crawler = SeleniumCrawler(driver_opts=driver_opts, num_threads=4)
+    driver_opts = [f'user-agent={user_agent}', 'log-level=3', 'load-extension={ext_path.absolute()}']
+    crawler = SeleniumCrawler(season=2020, driver_opts=driver_opts, num_threads=1)
     crawler.run()
 
 
