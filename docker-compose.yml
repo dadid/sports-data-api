@@ -24,17 +24,17 @@ services:
         ports:
             - "5050:80"
         restart: unless-stopped
-    app:
-        image: "sports-data-api:latest"
-        environment:
-            - SD_API_EMAIL_CONFIG=${SBD_API_EMAIL_CONFIG}
-            - SD_API_SECRET_KEY=${SBD_API_SECRET_KEY}
-        container_name: "sports-data-api"
-        ports:
-            - "8600:8600"
-        depends_on: 
-            - database
-        restart: always
+    # app:
+    #     image: "sports-data-api:latest"
+    #     environment:
+    #         - SD_API_EMAIL_CONFIG=${SBD_API_EMAIL_CONFIG}
+    #         - SD_API_SECRET_KEY=${SBD_API_SECRET_KEY}
+    #     container_name: "sports-data-api"
+    #     ports:
+    #         - "8600:8600"
+    #     depends_on: 
+    #         - database
+    #     restart: always
 volumes:
     postgresdata:
         # external: true # tells compose to use existing volume

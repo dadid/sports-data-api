@@ -1,4 +1,4 @@
-import logging, time, datetime, glob
+import logging, time, datetime
 from pathlib import Path
 from master_dict import *
 from multiprocessing import Queue
@@ -13,10 +13,9 @@ from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 import numpy as np
 import psycopg2
-from sqlalchemy import create_engine, sql
+from sqlalchemy import create_engine, sql, bindparam
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.engine import url
-from sqlalchemy import bindparam
 import subprocess
 import os
 
@@ -84,8 +83,9 @@ class SeleniumCrawler:
             self.workers[worker_id] = webdriver.Chrome(options=options)
             self.worker_queue.put(worker_id)
     
-    def selenium_task(self, data):
-        teamname = data
+    def task(self, data):
+        teamid = data[0]
+        teamname = data[1]
         worker_id = self.worker_queue.get()
         worker = self.workers[worker_id] 
         for key, value in self.data_dict.items():
@@ -96,24 +96,24 @@ class SeleniumCrawler:
                 try:
                     worker.get(value["url"].format(teamname))
                 except TimeoutException:
-                    self.insert_audit(teamname, 2, error='Timeout on get request.')
+                    self.insert_audit(teamid, 2, error='Timeout on get request.')
             for index, tag in value["html_tags"].items(): # loop over HTML tags associated with URL
                 try:
                     webelem = WebDriverWait(worker, 40).until(
                         ec.presence_of_element_located(
                             (By.XPATH, tag)))
                 except TimeoutException:
-                    self.insert_audit(teamname, 3, error=f'html table - {tag}')
+                    self.insert_audit(teamid, 3, error=f'html table - {tag}')
                     continue
                 try:
-                    df = self.html_to_dataframe(webelem, teamname)
+                    df = self.html_to_dataframe(webelem, teamid)
                 except ValueError:
-                    self.insert_audit(teamname, 4, error=f'html table - {tag}')
-                self.insert_data(df, index, teamname)
+                    self.insert_audit(teamid, 4, error=f'html table - {tag}')
+                self.insert_data(df, index, teamid)
             time.sleep(2 ** np.random.randint(3, 5))
         self.worker_queue.put(worker_id)
     
-    def html_to_dataframe(self, webelem, teamname: str) -> pd.DataFrame:
+    def html_to_dataframe(self, webelem, teamid) -> pd.DataFrame:
         try:
             html = webelem.get_attribute('outerHTML')
             df = pd.read_html(html)[0]
@@ -130,8 +130,24 @@ class SeleniumCrawler:
             df = df[~df.Name.str.contains("total", case=False)]
             df = df[~df.Name.str.contains("rank in 15", case=False)]
             df = df[~df.Name.str.contains("average", case=False)]
-        df["Team"] = teamname
-        df = df[['Team'] + [col for col in df.columns if col != 'Team']]
+        df.columns = df.columns.str.lower()
+        df.rename(
+            mapper={
+                'w-l%': 'wl',
+                'era+': 'eraplus',
+                'so/w': 'sow',
+                'ops+': 'opsplus',
+                'tops+': 'topsplus',
+                'sops+': 'sopsplus',
+                'xbt%': 'xbtpct',
+                'rs%': 'rspct',
+                'sb%': 'sbpct',
+                '2b':  'twob',
+                '3b':  'threeb'
+                },
+            axis='columns',
+            inplace=True)
+        df["teamid"] = teamid
 
         return df
     
@@ -139,51 +155,36 @@ class SeleniumCrawler:
         if not hasattr(self.database, 'engine'):
             self.database.connect()
         with self.database.engine.connect() as conn:
-            self.data = []
-            res = conn.execute(sql.text('SELECT teamabbrev FROM baseballreference.team ORDER BY id'))
-            for row in res:
-                self.data.append(row['teamabbrev'])
+            res = conn.execute(sql.text('SELECT id, teamabbrev FROM baseballreference.team ORDER BY id'))
+            self.data = [(row['id'], row['teamabbrev']) for row in res]
     
-    def insert_audit(self, teamname, statusid, index=None, error=None):
+    def insert_audit(self, teamid, statusid, index=None, error=None):
         if not hasattr(self.database, 'engine'):
             self.database.connect()
         with self.database.engine.connect() as conn:
             conn.execute(sql.text(AUDIT_INSERT), {
                 "statusid": statusid, 
-                "teamname": teamname,
+                "teamid": teamid,
                 "tablename": index if index is None else MASTER_DICT[index]["tablename"], 
-                "error": str(error)})
+                "error": str(error) if error is not None else error})
 
-    def insert_data(self, df, index, teamname):
+    def insert_data(self, df, index, teamid):
         if not hasattr(self.database, 'engine'):
             self.database.connect()
         try:
             df.to_sql(
                 name=MASTER_DICT[index]["table"],
+                schema='baseballreference',
                 con=self.database.engine,
                 index=False,
                 if_exists='append',
                 chunksize=1000
             )
-            self.insert_audit(teamname, 0, index=index)
+            self.insert_audit(teamid, 0, index=index)
         except SQLAlchemyError as e:
-            self.insert_audit(teamname, 1, index=index, error=e)
-
-    def insert_data_depr(self, df, index, teamname):
-        conn = self.database.connect()
-        cur = conn.cursor()
-        df_tuples = tuple(tuple(x) for x in df.values) # convert dataframe to a tuple of tuples; each inner tuple is one row
-        values_string = ','.join(cur.mogrify(MASTER_DICT[index]["insertvalues"], x).decode('utf-8') for x in df_tuples)
-        values_string = values_string.replace("'NaN'::float", 'NULL')
-        query = MASTER_DICT[index]["insertquery"].format(values_string)
-        with self.database.connect() as conn:
-            try:
-                conn.execute(query)
-                self.insert_audit(teamname, 0, index=index)
-            except SQLAlchemyError as e:
-                self.insert_audit(teamname, 1, index=index, error=e)
+            self.insert_audit(teamid, 1, index=index, error=e)
     
-    def listener(self, data_queue: Queue, worker_queue: Queue):
+    def listen_depr(self, data_queue: Queue, worker_queue: Queue):
         logger.info('listener started')
         while True:
             current_data = data_queue.get()
@@ -194,14 +195,14 @@ class SeleniumCrawler:
             logger.info(f'Pulled {current_data} from queue')
             worker_id = worker_queue.get()
             worker = self.workers[worker_id] 
-            self.selenium_task(current_data, worker)
+            self.task(current_data, worker)
             worker_queue.put(worker_id)
 
-    def run(self):
+    def run_depr(self):
         self.init_workers()
         self.create_data_list()
         logger.info('starting workers')
-        selenium_processes = [Thread(target=self.listener, args=(self.data_queue, self.worker_queue)) for i in range(self.num_threads)]
+        selenium_processes = [Thread(target=self.listen, args=(self.data_queue, self.worker_queue)) for i in range(self.num_threads)]
         for p in selenium_processes:
             p.daemon = True
             p.start()
@@ -213,11 +214,11 @@ class SeleniumCrawler:
         for worker in self.workers.values():
             worker.quit()
 
-    def run_threadpool(self):
+    def run(self):
         self.create_data_list()
         self.init_workers()
         with ThreadPoolExecutor(max_workers=self.num_threads) as executor:
-            executor.map(self.selenium_task, self.data)
+            executor.map(self.task, self.data)
 
 
 class Database:
@@ -258,10 +259,10 @@ def docker_exec_database_backup(zipfile=False):
 
 def main():
     user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.119 Safari/537.36'
-    extension_dir = r'C:\Users\Daniel\01.devel\chrome_anti_detection_extension'
-    driver_opts = [f'user-agent={user_agent}', 'log-level=3'] #, f'load-extension={extension_dir}']
-    bot = SeleniumCrawler(driver_opts=driver_opts, num_threads=4)
-    bot.run_threadpool()
+    ext_path = Path.home() / '01.devel' / 'chrome_anti_detection_extension'
+    driver_opts = [f'user-agent={user_agent}', 'log-level=3'] # f'load-extension={ext_path.absolute()}']
+    crawler = SeleniumCrawler(driver_opts=driver_opts, num_threads=4)
+    crawler.run()
 
 
 if __name__ == '__main__':
