@@ -2,7 +2,6 @@ import logging, time, datetime
 from pathlib import Path
 from master_dict import *
 from multiprocessing import Queue
-from threading import Thread
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import NoSuchElementException
@@ -12,7 +11,6 @@ from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 import numpy as np
-import psycopg2
 from sqlalchemy import create_engine, sql, bindparam
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.engine import url
@@ -237,12 +235,12 @@ def docker_exec_database_backup(zipfile=False):
 
 
 def main():
-    user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.119 Safari/537.36'
+    user_agent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.105 Safari/537.36'
     ext_path = Path.home() / '01.devel' / 'chrome_extension'
     driver_opts = [f'user-agent={user_agent}', 'log-level=3', f'load-extension={ext_path}']
     crawler = SeleniumCrawler(season=2020, driver_opts=driver_opts, num_threads=1)
     crawler.run()
-
+    
 
 if __name__ == '__main__':
     main()
