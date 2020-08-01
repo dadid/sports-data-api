@@ -8,13 +8,14 @@ import (
 
 	"github.com/go-chi/chi"
 )
+
 var (
-	Rdbms = os.Getenv("SBD_RDMBS")
-	Host = os.Getenv("SBD_DB_HOST")
-	Port = os.Getenv("SBD_DB_PORT")
-	User = os.Getenv("SBD_DB_USER")
-	Password = os.Getenv("SBD_DB_PASSWORD")
-	Database = os.Getenv("SBD_DATABASE")
+	Rdbms = os.Getenv("SDA_RDMBS")
+	Host = os.Getenv("SDA_DB_HOST")
+	Port = os.Getenv("SDA_DB_PORT")
+	User = os.Getenv("SDA_DB_USER")
+	Password = os.Getenv("SDA_DB_PASSWORD")
+	Database = os.Getenv("SDA_DATABASE")
 )
 
 func main() {

@@ -30,7 +30,7 @@ type User struct {
 }
 
 var (
-	secretKey = os.Getenv("SBD_API_SECRET_KEY")
+	secretKey = os.Getenv("SDA_SECRET_KEY")
 )
 
 // Authenticate is a middleware that wraps an http.Handler and checks/validates a Bearer Token cookie or header
