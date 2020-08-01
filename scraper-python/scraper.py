@@ -180,8 +180,8 @@ class SeleniumCrawler:
             self.database.connect()
         try:
             df.to_sql(
-                name=MASTER_DICT[index]["table"],
-                schema='baseballreference',
+                name=MASTER_DICT[index]["tablename"],
+                schema=os.environ['SDA_DB_SCHEMA'],
                 con=self.database.engine,
                 index=False,
                 if_exists='append',
