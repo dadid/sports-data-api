@@ -32,6 +32,7 @@ class SeleniumCrawler:
         self.season = season
         self.driver_opts = driver_opts
         self.num_threads = num_threads
+        self.worker_queue = Queue()
         self.database = Database(
             driver='postgresql+psycopg2',
             user=os.environ['SBD_DB_USER'],
@@ -112,7 +113,7 @@ class SeleniumCrawler:
             time.sleep(2 ** np.random.randint(3, 5))
         self.worker_queue.put(worker_id)
     
-    def html_to_dataframe(self, webelem, teamid) -> pd.DataFrame:
+    def html_to_dataframe(self, webelem, teamid):
         try:
             html = webelem.get_attribute('outerHTML')
             df = pd.read_html(html)[0]
@@ -237,8 +238,8 @@ def docker_exec_database_backup(zipfile=False):
 
 def main():
     user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.119 Safari/537.36'
-    ext_path = Path.home() / '01.devel' / 'chrome_anti_detection_extension'
-    driver_opts = [f'user-agent={user_agent}', 'log-level=3', 'load-extension={ext_path.absolute()}']
+    ext_path = Path.home() / '01.devel' / 'chrome_extension'
+    driver_opts = [f'user-agent={user_agent}', 'log-level=3', f'load-extension={ext_path}']
     crawler = SeleniumCrawler(season=2020, driver_opts=driver_opts, num_threads=1)
     crawler.run()
 
