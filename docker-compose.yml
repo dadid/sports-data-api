@@ -4,8 +4,6 @@ services:
         image: "postgres-ssl"
         command: -c ssl=on -c ssl_cert_file=/var/lib/postgresql/server.crt -c ssl_key_file=/var/lib/postgresql/server.key
         environment:
-            POSTGRES_DB: ${SDA_DATABASE}
-            POSTGRES_SCHEMA: ${SDA_DB_SCHEMA}
             POSTGRES_USERNAME: ${SDA_DB_USER}
             POSTGRES_PASSWORD: ${SDA_DB_PASSWORD}
         container_name:
@@ -30,6 +28,12 @@ services:
         environment:
             - SDA_EMAIL_CONFIG=${SDA_EMAIL_CONFIG}
             - SDA_SECRET_KEY=${SDA_SECRET_KEY}
+            - SDA_RDBMS=${SDA_RDBMS}
+            - SDA_DB_HOST=${SDA_DB_HOST}
+            - SDA_DB_PORT=${SDA_DB_PORT}
+            - SDA_DATABASE=${SDA_DATABASE}
+            - SDA_DB_USER=${SDA_DB_USER}
+            - SDA_DB_PASSWORD=${SDA_DB_PASSWORD}
         container_name: "sports-data-api"
         ports:
             - "8600:8600"

@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	Rdbms = os.Getenv("SDA_RDMBS")
+	Rdbms = os.Getenv("SDA_RDBMS")
 	Host = os.Getenv("SDA_DB_HOST")
 	Port = os.Getenv("SDA_DB_PORT")
 	User = os.Getenv("SDA_DB_USER")
