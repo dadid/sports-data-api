@@ -54,7 +54,7 @@ func (dbc *Container) Open() (err error) {
 		return
 	}
 
-	db, err := sqlx.Open(dbc.Conf.Rdbms, createConnString(dbc.Conf))
+	db, err := sqlx.Open(dbc.Conf.Rdbms, dbc.Conf.createConnString())
 	if err != nil {
 		err = errors.Wrap(err, "error opening connection to database")
 		return
@@ -68,7 +68,7 @@ func (dbc *Container) Open() (err error) {
 	return
 }
 
-func createConnString(conf Dbconfig) (connString string) {
+func (conf *Dbconfig) createConnString() (connString string) {
 	switch conf.Rdbms {
 	case "postgres":
 		connString = fmt.Sprintf("host=%s port=%s dbname=%s user=%s password=%s sslmode=disable", conf.Host, conf.Port, conf.Database, conf.User, conf.Password)

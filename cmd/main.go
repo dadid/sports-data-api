@@ -28,7 +28,6 @@ func main() {
 			User:     User,
 			Password: Password,
 			Database: Database,
-			WinAuth:  false,
 		},
 	}
 	err := dbc.Open()
