@@ -59,7 +59,6 @@ func (dbc *Container) Open() (err error) {
 		err = errors.Wrap(err, "error opening connection to database")
 		return
 	}
-	fmt.Println(dbc.Conf.Host)
 	if err = db.Ping(); err != nil {
 		err = errors.Wrapf(err, "error pinging %s", dbc.Conf.Host)
 		return

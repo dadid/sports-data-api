@@ -33,17 +33,17 @@ class SeleniumCrawler:
         self.worker_queue = Queue()
         self.database = Database(
             driver='postgresql+psycopg2',
-            user=os.environ['SBD_DB_USER'],
-            password=os.environ['SBD_DB_PASSWORD'],
-            host=os.environ['SBD_DB_HOST'],
-            port=os.environ['SBD_DB_PORT'],
-            database=os.environ['SBD_DATABASE']
+            user=os.environ['SDA_DB_USER'],
+            password=os.environ['SDA_DB_PASSWORD'],
+            host=os.environ['SDA_DB_HOST'],
+            port=os.environ['SDA_DB_PORT'],
+            database=os.environ['SDA_DATABASE']
         )
         self.data_dict = {
             "batting": {
                 "url": MASTER_DICT[0]["url"],
                 "html_tags": {
-                    # 0: MASTER_DICT[0]["htmltag"],
+                    0: MASTER_DICT[0]["htmltag"],
                     1: MASTER_DICT[1]["htmltag"]
                 }
             },
@@ -237,7 +237,7 @@ def docker_exec_database_backup(zipfile=False):
 def main():
     user_agent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.105 Safari/537.36'
     ext_path = Path.home() / '01.devel' / 'chrome_extension'
-    driver_opts = [f'user-agent={user_agent}', 'log-level=3', f'load-extension={ext_path}']
+    driver_opts = [f'user-agent={user_agent}', 'log-level=3', f'load-extension={ext_path}', '--headless']
     crawler = SeleniumCrawler(season=2020, driver_opts=driver_opts, num_threads=1)
     crawler.run()
     
